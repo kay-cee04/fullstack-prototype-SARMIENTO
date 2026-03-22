@@ -1,6 +1,3 @@
-// ========================================
-// Phase 2 & 4: Global State & Storage
-// ========================================
 const STORAGE_KEY = 'ipt_demo_v1';
 let currentUser = null;
 let editingAccountEmail = null;
@@ -122,40 +119,37 @@ function handleRouting() {
 // ========================================
 
 // A. Registration
-document.getElementById('register-form').addEventListener('submit', function(e) {
+document.getElementById('register-form').addEventListener('submit', async function(e) {
     e.preventDefault();
     
-    const email = document.getElementById('reg-email').value.trim();
     const first = document.getElementById('reg-first').value.trim();
     const last = document.getElementById('reg-last').value.trim();
-    const pass = document.getElementById('reg-pass').value;
+    const email = document.getElementById('reg-email').value.trim();
+    const password = document.getElementById('reg-pass').value;
     
-    // Validate
-    if (window.db.accounts.find(a => a.email === email)) {
-        return showToast('Email already exists!', 'danger');
+    try {
+        const response = await fetch('http://localhost:3000/api/register', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({ first, last, email, password })
+        });
+        
+        const data = await response.json();
+        
+        if (response.ok) {
+            localStorage.setItem('unverified_email', email);
+            showToast('Account created! Please verify your email.', 'success');
+            this.reset();
+            navigateTo('#/verify-email');
+        } else {
+            showToast(data.error || 'Registration failed', 'danger');
+        }
+    } catch (error) {
+        console.error('Registration error:', error);
+        showToast('Server error. Please try again.', 'danger');
     }
-    
-    if (pass.length < 6) {
-        return showToast('Password must be at least 6 characters', 'warning');
-    }
-    
-    // Create account
-    const newUser = {
-        first,
-        last,
-        email,
-        pass,
-        role: 'user',
-        verified: false
-    };
-    
-    window.db.accounts.push(newUser);
-    saveToStorage();
-    localStorage.setItem('unverified_email', email);
-    
-    showToast('Account created! Please verify your email.', 'success');
-    this.reset();
-    navigateTo('#/verify-email');
 });
 
 // B. Email Verification
