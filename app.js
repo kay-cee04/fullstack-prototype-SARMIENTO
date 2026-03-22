@@ -1,6 +1,6 @@
 'use strict';
 
-//  GLOBALS 
+// GLOBALS 
 const STORAGE_KEY = 'ipt_demo_v1';
 let currentUser = null;
 let editingEmployeeId = null;
@@ -191,7 +191,7 @@ function loginUser() {
   localStorage.setItem('auth_token', email);
   setAuthState(true, account);
   showToast(`Welcome back, ${account.firstName}!`, 'success');
-  navigateTo('#/profile');
+  navigateTo ('#/profile');
 }
 
 //  LOGOUT 
@@ -595,7 +595,6 @@ function showToast(message, type = 'info') {
   setTimeout(() => { const el = document.getElementById(id); if (el) el.remove(); }, 3500);
 }
 
-//  INIT 
 function init() {
   loadFromStorage();
 
