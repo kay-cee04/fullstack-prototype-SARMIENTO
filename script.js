@@ -11,6 +11,54 @@ window.db = {
     requests: []
 };
 
+// Helper function to make authenticated API calls
+async function fetchWithAuth(url, options = {}) {
+    const token = sessionStorage.getItem('authToken');
+    
+    if (!token) {
+        throw new Error('No authentication token');
+    }
+    
+    const headers = {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${token}`,
+        ...options.headers
+    };
+    
+    return fetch(url, {
+        ...options,
+        headers
+    });
+}
+
+// Check if user is logged in on page load
+async function checkAuth() {
+    const token = sessionStorage.getItem('authToken');
+    
+    if (!token) {
+        setAuthState(false);
+        return;
+    }
+    
+    try {
+        const response = await fetchWithAuth('http://localhost:3000/api/profile');
+        
+        if (response.ok) {
+            const user = await response.json();
+            currentUser = user;
+            setAuthState(true, user);
+        } else {
+            // Token invalid or expired
+            sessionStorage.removeItem('authToken');
+            setAuthState(false);
+        }
+    } catch (error) {
+        console.error('Auth check error:', error);
+        sessionStorage.removeItem('authToken');
+        setAuthState(false);
+    }
+}
+
 // Phase 4: Load from localStorage
 function loadFromStorage() {
     const data = localStorage.getItem(STORAGE_KEY);
@@ -153,48 +201,73 @@ document.getElementById('register-form').addEventListener('submit', async functi
 });
 
 // B. Email Verification
-function updateVerifyMessage() {
+document.getElementById('verify-btn').addEventListener('click', async function() {
     const email = localStorage.getItem('unverified_email');
-    if (email) {
-        document.getElementById('verify-msg').textContent = 
-            `A verification email has been sent to ${email}. Please verify to continue.`;
-    }
-}
-
-document.getElementById('verify-btn').addEventListener('click', function() {
-    const email = localStorage.getItem('unverified_email');
-    const user = window.db.accounts.find(a => a.email === email);
     
-    if (user) {
-        user.verified = true;
-        saveToStorage();
-        localStorage.removeItem('unverified_email');
-        showToast('✅ Email verified! You can now login.', 'success');
-        navigateTo('#/login');
-    } else {
-        showToast('Verification failed. Please try registering again.', 'danger');
+    if (!email) {
+        showToast('No email to verify', 'warning');
+        return;
+    }
+    
+    try {
+        const response = await fetch('http://localhost:3000/api/verify-email', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({ email })
+        });
+        
+        const data = await response.json();
+        
+        if (response.ok) {
+            localStorage.removeItem('unverified_email');
+            showToast('✅ Email verified! You can now login.', 'success');
+            navigateTo('#/login');
+        } else {
+            showToast(data.error || 'Verification failed', 'danger');
+        }
+    } catch (error) {
+        console.error('Verification error:', error);
+        showToast('Server error. Please try again.', 'danger');
     }
 });
 
 // C. Login
-document.getElementById('login-form').addEventListener('submit', function(e) {
+document.getElementById('login-form').addEventListener('submit', async function(e) {
     e.preventDefault();
     
     const email = document.getElementById('login-email').value.trim();
-    const pass = document.getElementById('login-pass').value;
+    const password = document.getElementById('login-pass').value;
     
-    const user = window.db.accounts.find(a => 
-        a.email === email && a.pass === pass && a.verified
-    );
-    
-    if (user) {
-        localStorage.setItem('auth_token', email);
-        setAuthState(true, user);
-        showToast(`Welcome back, ${user.first}!`, 'success');
-        this.reset();
-        navigateTo('#/profile');
-    } else {
-        showToast('Invalid credentials or unverified account.', 'danger');
+    try {
+        const response = await fetch('http://localhost:3000/api/login', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({ email, password })
+        });
+        
+        const data = await response.json();
+        
+        if (response.ok) {
+            // Store token in sessionStorage
+            sessionStorage.setItem('authToken', data.token);
+            
+            // Update UI
+            currentUser = data.user;
+            setAuthState(true, data.user);
+            
+            showToast(`Welcome back, ${data.user.first}!`, 'success');
+            this.reset();
+            navigateTo('#/profile');
+        } else {
+            showToast(data.error || 'Login failed', 'danger');
+        }
+    } catch (error) {
+        console.error('Login error:', error);
+        showToast('Server error. Please try again.', 'danger');
     }
 });
 
@@ -722,9 +795,8 @@ function showToast(message, type = 'info') {
 // ========================================
 window.addEventListener('hashchange', handleRouting);
 window.addEventListener('DOMContentLoaded', function() {
-    loadFromStorage();
+    checkAuth();
     
-    // Set initial hash if empty
     if (!window.location.hash) {
         window.location.hash = '#/';
     }
